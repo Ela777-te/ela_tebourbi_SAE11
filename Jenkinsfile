@@ -4,7 +4,7 @@ pipeline {
  stages {
  stage('GIT') {
            steps {
-               git branch: 'master',
+               git branch: 'main',
                url: ' https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
           }
      }
