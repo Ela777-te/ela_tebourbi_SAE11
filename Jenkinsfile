@@ -5,7 +5,8 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
         IMAGE_NAME = "elatebourbi/student-management"
         VERSION = "${env.BUILD_ID}"
-       PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}" // Assure que Docker est trouvé
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}" // Assure que Docker est trouvé
+        GIT_CONFIG = "/Users/elatebourbi/.jenkins/gitconfig" // Evite conflit de permissions JGit
     }
     
     options {
@@ -17,7 +18,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo "📦 Récupération du code source..."
-                git branch: 'main', url: 'https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
+                // On force JGit à utiliser un chemin de config Jenkins accessible
+                withEnv(["HOME=/Users/elatebourbi"]) {
+                    git branch: 'main', url: 'https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
+                }
             }
         }
         
@@ -36,6 +40,7 @@ pipeline {
             steps {
                 echo "🐳 Vérification de Docker..."
                 sh '''
+                    export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH
                     docker --version
                     docker ps || true
                 '''
@@ -45,10 +50,11 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo "🐳 Construction de l'image Docker..."
-                sh """
+                sh '''
+                    export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH
                     docker build -t ${IMAGE_NAME}:${VERSION} .
                     docker tag ${IMAGE_NAME}:${VERSION} ${IMAGE_NAME}:latest
-                """
+                '''
             }
         }
         
@@ -60,12 +66,13 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh """
-                        echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
+                    sh '''
+                        export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push ${IMAGE_NAME}:${VERSION}
                         docker push ${IMAGE_NAME}:latest
                         docker logout
-                    """
+                    '''
                 }
             }
             post {
