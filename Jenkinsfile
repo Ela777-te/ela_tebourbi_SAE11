@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
-        IMAGE_NAME = "ElaTebourbi/student-management"
+        IMAGE_NAME = "elatebourbi/student-management"
         VERSION = "${env.BUILD_ID}"
     }
 
