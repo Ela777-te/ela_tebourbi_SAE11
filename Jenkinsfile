@@ -1,60 +1,85 @@
 pipeline {
     agent any
-
-    tools {
-        jdk 'JAVA_HOME'
-        maven 'M2_HOME'
-    }
-
+    
     environment {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
         IMAGE_NAME = "elatebourbi/student-management"
         VERSION = "${env.BUILD_ID}"
+        PATH = "/usr/local/bin:/usr/bin:/bin:${env.PATH}" // Assure que Docker est trouvé
     }
-
+    
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+    }
+    
     stages {
-        stage('GIT Checkout') {
+        stage('Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
+                echo "📦 Récupération du code source..."
+                git branch: 'main', url: 'https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
             }
         }
-
-        stage('Build') {
+        
+        stage('Build JAR') {
             steps {
+                echo "🔨 Construction du JAR avec Maven..."
                 sh 'mvn clean package -DskipTests'
             }
+            post {
+                success { echo "✅ Build Maven réussi!" }
+                failure { error "❌ Échec du build Maven" }
+            }
         }
-
-        stage('Docker Build') {
+        
+        stage('Test Docker') {
             steps {
+                echo "🐳 Vérification de Docker..."
+                sh '''
+                    docker --version
+                    docker ps || true
+                '''
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo "🐳 Construction de l'image Docker..."
                 sh """
                     docker build -t ${IMAGE_NAME}:${VERSION} .
                     docker tag ${IMAGE_NAME}:${VERSION} ${IMAGE_NAME}:latest
                 """
             }
         }
-
-        stage('Docker Push') {
+        
+        stage('Push to Docker Hub') {
             steps {
-                sh """
-                    echo "${DOCKERHUB_CREDENTIALS_PSW}" | docker login -u "${DOCKERHUB_CREDENTIALS_USR}" --password-stdin
-                    docker push ${IMAGE_NAME}:${VERSION}
-                    docker push ${IMAGE_NAME}:latest
-                    docker logout
-                """
+                echo "📤 Authentification sur Docker Hub..."
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
+                        docker push ${IMAGE_NAME}:${VERSION}
+                        docker push ${IMAGE_NAME}:latest
+                        docker logout
+                    """
+                }
+            }
+            post {
+                success { echo "✅ Images poussées avec succès vers Docker Hub!" }
             }
         }
     }
-
+    
     post {
         success {
-            echo "🎉 SUCCÈS TOTAL !"
-            echo "✅ Image Docker construite: ${IMAGE_NAME}:${VERSION}"
-            echo "✅ Image poussée vers Docker Hub !"
+            echo "🎉 Pipeline exécuté avec succès!"
+            echo "✅ Image Docker: ${IMAGE_NAME}:${VERSION}"
+            echo "✅ Disponible sur Docker Hub !"
         }
-        failure {
-            echo "❌ Échec du pipeline."
-        }
+        failure { echo "💥 Échec du pipeline!" }
     }
 }
