@@ -5,7 +5,7 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
         IMAGE_NAME = "elatebourbi/student-management"
         VERSION = "${env.BUILD_ID}"
-        PATH = "/usr/local/bin:/usr/bin:/bin:${env.PATH}" // Assure que Docker est trouvé
+       PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}" // Assure que Docker est trouvé
     }
     
     options {
