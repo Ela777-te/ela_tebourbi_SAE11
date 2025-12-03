@@ -1,0 +1,52 @@
+pipeline {
+    agent any
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+    }
+    
+    stages {
+        stage('Prepare') {
+            steps {
+                sh 'chmod +x mvnw'
+            }
+        }
+        
+        stage('Build and Test') {
+            steps {
+                // Version simplifiée sans tests ou avec H2
+                sh './mvnw clean package -DskipTests'
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv(installationName: 'sq1') {
+                    // Version simple sans tests
+                    sh './mvnw sonar:sonar -DskipTests'
+                    
+                    // OU avec H2 pour les tests
+                    // sh './mvnw clean verify sonar:sonar -Dspring.datasource.url=jdbc:h2:mem:testdb -Dspring.datasource.username=sa -Dspring.datasource.password= -Dspring.jpa.database-platform=org.hibernate.dialect.H2Dialect'
+                }
+            }
+        }
+        
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '✅ SonarQube analysis completed!'
+            echo '📊 Check report at: http://localhost:9000'
+        }
+        failure {
+            echo '❌ SonarQube analysis failed!'
+        }
+    }
+}
