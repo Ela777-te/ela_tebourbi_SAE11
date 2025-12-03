@@ -43,7 +43,7 @@ pipeline {
     post {
         success {
             echo '✅ SonarQube analysis completed!'
-            echo '📊 Check report at: http://localhost:9000'
+            echo '📊 Check report at: http://192.168.64.4:9000'
         }
         failure {
             echo '❌ SonarQube analysis failed!'
