@@ -10,7 +10,6 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
         IMAGE_NAME = "elatebourbi/student-management"
         VERSION = "${env.BUILD_ID}"
-        DOCKER_HOST = ""  // <-- force Docker à utiliser le socket local
     }
 
     stages {
@@ -32,10 +31,12 @@ pipeline {
         stage('Docker Build') {
             steps {
                 echo "🐳 Construction de l'image Docker..."
-                sh """
-                    docker build -t ${IMAGE_NAME}:${VERSION} .
-                    docker tag ${IMAGE_NAME}:${VERSION} ${IMAGE_NAME}:latest
-                """
+                script {
+                    sh """
+                        DOCKER_HOST=unix:///var/run/docker.sock docker build -t ${IMAGE_NAME}:${VERSION} .
+                        DOCKER_HOST=unix:///var/run/docker.sock docker tag ${IMAGE_NAME}:${VERSION} ${IMAGE_NAME}:latest
+                    """
+                }
             }
         }
 
@@ -49,10 +50,11 @@ pipeline {
                         passwordVariable: 'DOCKERHUB_CREDENTIALS_PSW'
                     )]) {
                         sh """
+                            DOCKER_HOST=unix:///var/run/docker.sock \
                             echo "\$DOCKERHUB_CREDENTIALS_PSW" | docker login -u "\$DOCKERHUB_CREDENTIALS_USR" --password-stdin
-                            docker push ${IMAGE_NAME}:${VERSION}
-                            docker push ${IMAGE_NAME}:latest
-                            docker logout
+                            DOCKER_HOST=unix:///var/run/docker.sock docker push ${IMAGE_NAME}:${VERSION}
+                            DOCKER_HOST=unix:///var/run/docker.sock docker push ${IMAGE_NAME}:latest
+                            DOCKER_HOST=unix:///var/run/docker.sock docker logout
                         """
                     }
                 }
