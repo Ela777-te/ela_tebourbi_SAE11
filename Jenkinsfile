@@ -1,60 +1,61 @@
 pipeline {
     agent any
 
-    tools {
-        jdk 'JAVA_HOME'
-        maven 'M2_HOME'
-    }
-
     environment {
+        JAVA_HOME = "/usr/lib/jvm/java-17-openjdk-arm64"
+        PATH = "${JAVA_HOME}/bin:${env.PATH}"
         DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
         IMAGE_NAME = "elatebourbi/student-management"
         VERSION = "${env.BUILD_ID}"
     }
 
     stages {
-        stage('GIT Checkout') {
+        stage('Checkout') {
             steps {
                 echo "📦 Récupération du code source..."
-                git branch: 'main',
-                    url: 'https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
+                git branch: 'main', url: 'https://github.com/Ela777-te/ela_tebourbi_SAE11.git'
             }
         }
 
-        stage('Build') {
+        stage('Build Maven') {
             steps {
-                echo "🔨 Construction du JAR avec Maven..."
-                sh 'mvn clean package -DskipTests'
+                echo "🔨 Compilation du projet avec Maven (Java 17)..."
+                sh './mvnw clean package -DskipTests'
             }
-        }
-
-        stage('Docker Build') {
-            steps {
-                echo "🐳 Construction de l'image Docker..."
-                script {
-                    sh """
-                        DOCKER_HOST=unix:///var/run/docker.sock docker build -t ${IMAGE_NAME}:${VERSION} .
-                        DOCKER_HOST=unix:///var/run/docker.sock docker tag ${IMAGE_NAME}:${VERSION} ${IMAGE_NAME}:latest
-                    """
+            post {
+                success {
+                    echo "✅ Build Maven réussi!"
+                }
+                failure {
+                    echo "❌ Échec du build Maven"
                 }
             }
         }
 
-        stage('Docker Push') {
+        stage('Build Docker Image') {
             steps {
-                echo "📤 Pousser les images vers Docker Hub..."
+                echo "🐳 Construction de l'image Docker..."
+                sh """
+                    docker build -t ${IMAGE_NAME}:${VERSION} .
+                    docker tag ${IMAGE_NAME}:${VERSION} ${IMAGE_NAME}:latest
+                """
+            }
+        }
+
+        stage('Push Docker Hub') {
+            steps {
+                echo "📤 Pousser l'image sur Docker Hub..."
                 script {
                     withCredentials([usernamePassword(
                         credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKERHUB_CREDENTIALS_USR',
-                        passwordVariable: 'DOCKERHUB_CREDENTIALS_PSW'
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh """
-                            DOCKER_HOST=unix:///var/run/docker.sock \
-                            echo "\$DOCKERHUB_CREDENTIALS_PSW" | docker login -u "\$DOCKERHUB_CREDENTIALS_USR" --password-stdin
-                            DOCKER_HOST=unix:///var/run/docker.sock docker push ${IMAGE_NAME}:${VERSION}
-                            DOCKER_HOST=unix:///var/run/docker.sock docker push ${IMAGE_NAME}:latest
-                            DOCKER_HOST=unix:///var/run/docker.sock docker logout
+                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            docker push ${IMAGE_NAME}:${VERSION}
+                            docker push ${IMAGE_NAME}:latest
+                            docker logout
                         """
                     }
                 }
@@ -64,12 +65,11 @@ pipeline {
 
     post {
         success {
-            echo "🎉 SUCCÈS TOTAL !"
-            echo "✅ Image Docker construite: ${IMAGE_NAME}:${VERSION}"
-            echo "✅ Image poussée vers Docker Hub !"
+            echo "🎉 Pipeline terminé avec succès !"
+            echo "✅ Image Docker construite et poussée : ${IMAGE_NAME}:${VERSION}"
         }
         failure {
-            echo "❌ Échec du pipeline."
+            echo "💥 Échec du pipeline !"
         }
     }
 }
